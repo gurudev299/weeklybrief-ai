@@ -31,20 +31,18 @@ Respond ONLY with a valid JSON object matching this exact structure:
 
     // Direct Google Gemini REST API call (No NPM SDK required)
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`
-      ,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: promptText }] }],
-          generationConfig: {
-            responseMimeType: "application/json",
-          },
-        }),
+  `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+  {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: promptText }] }],
+      generationConfig: {
+        responseMimeType: "application/json"
       }
-    );
-
+    }),
+  }
+);
     if (!response.ok) {
       const errBody = await response.text();
       console.error("❌ Gemini HTTP Error from Google:", errBody);
