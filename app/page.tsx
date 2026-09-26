@@ -1,69 +1,114 @@
-import Image from "next/image";
+"use client";
+
+import { useState } from "react";
+import Papa from "papaparse";
+import { useRouter } from "next/navigation";
+import { processMarketingCSV } from "../lib/calculator";
+import { RawMarketingRow } from "../lib/types";
 
 export default function Home() {
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+
+  const handleFileUpload = (file: File) => {
+    setError(null);
+    setIsProcessing(true);
+
+    Papa.parse<RawMarketingRow>(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        try {
+          if (!results.data || results.data.length < 2) {
+            throw new Error("CSV contains insufficient rows for week-over-week analysis.");
+          }
+
+          // Step 1: Run mathematical calculations locally
+          const calculatedPayload = processMarketingCSV(results.data);
+
+          // Step 2: Send structured calculations to the AI Route
+          const response = await fetch("/api/analyze", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(calculatedPayload),
+          });
+
+          if (!response.ok) {
+            throw new Error("AI analysis generation failed. Please try again.");
+          }
+
+          const aiReport = await response.json();
+
+          // Step 3: Cache analysis and navigate to report preview
+          sessionStorage.setItem("weekly_calculated", JSON.stringify(calculatedPayload));
+          sessionStorage.setItem("weekly_ai_report", JSON.stringify(aiReport));
+
+          router.push("/report");
+        } catch (err: any) {
+          setError(err.message || "Failed to process the CSV file.");
+          setIsProcessing(false);
+        }
+      },
+      error: () => {
+        setError("Error parsing the CSV file. Verify the file format.");
+        setIsProcessing(false);
+      },
+    });
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-slate-900">
+      <div className="max-w-2xl w-full text-center space-y-6">
+        <div className="inline-block bg-indigo-50 border border-indigo-200 text-indigo-700 px-3 py-1 rounded-full text-xs font-semibold tracking-wide uppercase">
+          Agency MVP • Version 1.0
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+        
+        <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900">
+          Turn your weekly marketing CSV into an <span className="text-indigo-600">actionable client report</span>.
+        </h1>
+        
+        <p className="text-slate-600 text-base md:text-lg">
+          Upload campaign performance data. We process the numbers with exact calculations, run LLM narrative generation, and produce an executive-ready weekly brief.
+        </p>
+
+        <div className="bg-white border-2 border-dashed border-slate-300 hover:border-indigo-500 transition-colors p-8 rounded-2xl shadow-sm space-y-4">
+          <input
+            type="file"
+            accept=".csv"
+            id="csv-file-input"
+            className="hidden"
+            onChange={(e) => {
+              if (e.target.files?.[0]) handleFileUpload(e.target.files[0]);
+            }}
+          />
+          <label
+            htmlFor="csv-file-input"
+            className="cursor-pointer block space-y-3"
           >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            <div className="mx-auto w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 text-xl font-bold">
+              ↑
+            </div>
+            <div>
+              <p className="font-semibold text-slate-700">Click to upload or drag & drop</p>
+              <p className="text-xs text-slate-400 mt-1">Requires: Date, Campaign, Spend, Clicks, Leads, Revenue</p>
+            </div>
+          </label>
         </div>
-      </main>
-    </div>
+
+        {isProcessing && (
+          <div className="flex items-center justify-center space-x-2 text-indigo-600 text-sm font-medium">
+            <span className="animate-spin inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full" />
+            <span>Calculating metrics and requesting AI insights...</span>
+          </div>
+        )}
+
+        {error && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-xs text-left">
+            <strong>Error:</strong> {error}
+          </div>
+        )}
+      </div>
+    </main>
   );
 }
